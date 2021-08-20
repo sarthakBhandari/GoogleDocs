@@ -7,7 +7,8 @@ import { EditorState, convertToRaw, convertFromRaw } from "draft-js";
 import { db } from "../firebase";
 import { useSession } from "next-auth/client";
 import { useRouter } from "next/dist/client/router";
-import { useDocumentOnce } from "react-firebase-hooks/firestore";
+import { useDocumentOnce, useDocument } from "react-firebase-hooks/firestore";
+import { io } from "socket.io-client";
 
 const Editor = dynamic(
   () => import("react-draft-wysiwyg").then((module) => module.Editor),
@@ -19,10 +20,15 @@ const TextEditor = () => {
   const router = useRouter();
   const [session] = useSession();
   const { id } = router.query;
+  // const [socket, setSocket] = useState(null);
 
-  const [snapshot] = useDocumentOnce(
+  const [snapshot] = useDocument(
     db.collection("userDocs").doc(session.user.email).collection("docs").doc(id)
   );
+
+  // getting document text stored in firebase,
+  // realtime changes detected because of useDocument hook
+  // no need for socket io
   useEffect(() => {
     if (snapshot?.data()?.editorState) {
       setEditorState(
@@ -30,11 +36,26 @@ const TextEditor = () => {
           convertFromRaw(snapshot?.data()?.editorState)
         )
       );
+      setEditorState(EditorState.moveFocusToEnd);
     }
   }, [snapshot]);
 
+  // // websocket
+  // useEffect(() => {
+  //   const s = io("http://localhost:3001");
+  //   setSocket(s);
+
+  //   return () => {
+  //     s.disconnect();
+  //   };
+  // }, []);
+
+  // handeling and saving changes to firebase
   const onEditorStateChange = (editorState) => {
     setEditorState(editorState);
+
+    // storable format
+    const raw = convertToRaw(editorState.getCurrentContent());
 
     db.collection("userDocs")
       .doc(session.user.email)
@@ -43,12 +64,20 @@ const TextEditor = () => {
       .set(
         {
           // converting it to storable format
-          editorState: convertToRaw(editorState.getCurrentContent()),
+          editorState: raw,
         },
         {
           merge: true,
         }
       );
+    // if (socket && socket.id) {
+    //   const sender_socket_id = socket?.id;
+    //   socket.emit("send-changes", { raw, sender_socket_id, id });
+    //   socket.on("receive_changes", (raw_data) => {
+    //     setEditorState(EditorState.createWithContent(convertFromRaw(raw_data)));
+    //     setEditorState(EditorState.moveFocusToEnd);
+    //   });
+    // }
   };
 
   return (

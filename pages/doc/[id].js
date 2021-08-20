@@ -9,6 +9,7 @@ import {
 import { getSession, useSession, signOut } from "next-auth/client";
 import Login from "../../components/Login";
 import TextEditor from "../../components/TextEditor";
+import { io } from "socket.io-client";
 
 const Doc = () => {
   const [session] = useSession();
